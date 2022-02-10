@@ -40,13 +40,6 @@ SET(PROJECT_USE_CMAKE_EXPORT True)
 OPTION(ENABLE_VECTORIZATION "Enable vectorization and further processor-related optimizations" OFF)
 OPTION(BUILD_BENCHMARK "Build the benchmark" ON)
 
-IF(DEFINED BUILD_UNIT_TESTS)
-  MESSAGE(AUTHOR_WARNING "BUILD_UNIT_TESTS is deprecated. Use BUILD_TESTING instead.\
-    If you are manually building Crocoddyl from source in an existing build folder,\
-    we suggest that you delete your build folder and make a new one.")
-  OPTION(BUILD_TESTING ${BUILD_UNIT_TESTS})
-ENDIF(DEFINED BUILD_UNIT_TESTS)
-
 IF(ENABLE_VECTORIZATION)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 ENDIF()
@@ -57,7 +50,7 @@ PROJECT(${PROJECT_NAME} ${PROJECT_ARGS})
 # If needed, fix CMake policy for APPLE systems
 APPLY_DEFAULT_APPLE_CONFIGURATION()
 
-CHECK_MINIMAL_CXX_STANDARD(14 ENFORCE)
+CHECK_MINIMAL_CXX_STANDARD(17 ENFORCE)
 
 SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/find-external/CppAD/" ${CMAKE_MODULE_PATH})
 
@@ -154,11 +147,6 @@ IF(UNIX)
 
   INSTALL(TARGETS ${PROJECT_NAME} EXPORT ${TARGETS_EXPORT_NAME} DESTINATION lib)
 ENDIF(UNIX)
-
-# Build the unit tests
-IF(BUILD_TESTING)
-  ADD_SUBDIRECTORY(unittest)
-ENDIF(BUILD_TESTING)
 
 # Build the benchmark
 IF(BUILD_BENCHMARK)
