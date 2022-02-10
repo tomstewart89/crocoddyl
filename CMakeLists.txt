@@ -14,7 +14,6 @@ ENDIF()
 # Include important cmake modules
 INCLUDE(cmake/base.cmake)
 INCLUDE(cmake/boost.cmake)
-INCLUDE(cmake/python.cmake)
 INCLUDE(cmake/apple.cmake)
 
 # Print initial message
@@ -39,9 +38,7 @@ SET(PROJECT_USE_CMAKE_EXPORT True)
 
 # Create different building options
 OPTION(ENABLE_VECTORIZATION "Enable vectorization and further processor-related optimizations" OFF)
-OPTION(BUILD_PYTHON_INTERFACE "Build the python binding" ON)
 OPTION(BUILD_BENCHMARK "Build the benchmark" ON)
-OPTION(BUILD_EXAMPLES "Build the examples" ON)
 
 IF(DEFINED BUILD_UNIT_TESTS)
   MESSAGE(AUTHOR_WARNING "BUILD_UNIT_TESTS is deprecated. Use BUILD_TESTING instead.\
@@ -129,12 +126,6 @@ IF(Boost_VERSION GREATER 107299)
   ADD_DEFINITIONS(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 ENDIF()
 
-IF(BUILD_PYTHON_INTERFACE)
-  FINDPYTHON()
-  SEARCH_FOR_BOOST_PYTHON(REQUIRED)
-  ADD_PROJECT_DEPENDENCY(eigenpy 2.5.0 REQUIRED PKG_CONFIG_REQUIRES "eigenpy >= 2.5.0")
-ENDIF(BUILD_PYTHON_INTERFACE)
-
 # Main library
 FILE(GLOB_RECURSE ${PROJECT_NAME}_SOURCES
   src/*.cpp
@@ -164,13 +155,6 @@ IF(UNIX)
   INSTALL(TARGETS ${PROJECT_NAME} EXPORT ${TARGETS_EXPORT_NAME} DESTINATION lib)
 ENDIF(UNIX)
 
-# Build the Python interface
-IF(BUILD_PYTHON_INTERFACE)
-  # Include and add the bindings directory
-  INCLUDE_DIRECTORIES(bindings)
-  ADD_SUBDIRECTORY(bindings)
-ENDIF(BUILD_PYTHON_INTERFACE)
-
 # Build the unit tests
 IF(BUILD_TESTING)
   ADD_SUBDIRECTORY(unittest)
@@ -180,15 +164,6 @@ ENDIF(BUILD_TESTING)
 IF(BUILD_BENCHMARK)
   ADD_SUBDIRECTORY(benchmark)
 ENDIF(BUILD_BENCHMARK)
-
-# Build the examples
-IF(BUILD_EXAMPLES)
-  IF(BUILD_PYTHON_INTERFACE)
-    ADD_SUBDIRECTORY(examples)
-  ELSE(BUILD_PYTHON_INTERFACE)
-    MESSAGE(WARNING "Python interface is not built, hence cannot build examples.")
-  ENDIF(BUILD_PYTHON_INTERFACE)
-ENDIF(BUILD_EXAMPLES)
 
 # PkgConfig packaging of the project
 PKG_CONFIG_APPEND_LIBS(${PROJECT_NAME})

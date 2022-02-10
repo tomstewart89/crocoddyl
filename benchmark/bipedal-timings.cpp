@@ -37,10 +37,12 @@
 #define STDDEV(vec) std::sqrt(((vec - vec.mean())).square().sum() / ((double)vec.size() - 1))
 #define AVG(vec) (vec.mean())
 
-int main(int argc, char* argv[]) {
-  unsigned int N = 100;  // number of nodes
-  unsigned int T = 5e4;  // number of trials
-  if (argc > 1) {
+int main(int argc, char *argv[])
+{
+  unsigned int N = 100; // number of nodes
+  unsigned int T = 5e4; // number of trials
+  if (argc > 1)
+  {
     T = atoi(argv[1]);
   }
 
@@ -120,7 +122,7 @@ int main(int argc, char* argv[]) {
   boost::shared_ptr<crocoddyl::ActionModelAbstract> terminalModel =
       boost::make_shared<crocoddyl::IntegratedActionModelEuler>(terminalDAM, 1e-3);
 
-  std::vector<boost::shared_ptr<crocoddyl::ActionModelAbstract> > runningModels(N, runningModel);
+  std::vector<boost::shared_ptr<crocoddyl::ActionModelAbstract>> runningModels(N, runningModel);
 
   boost::shared_ptr<crocoddyl::ShootingProblem> problem =
       boost::make_shared<crocoddyl::ShootingProblem>(x0, runningModels, terminalModel);
@@ -130,8 +132,8 @@ int main(int argc, char* argv[]) {
 
   boost::shared_ptr<crocoddyl::ActionDataAbstract> runningModel_data = runningModel->createData();
   boost::shared_ptr<crocoddyl::DifferentialActionDataAbstract> runningDAM_data = runningDAM->createData();
-  crocoddyl::DifferentialActionDataContactFwdDynamics* d =
-      static_cast<crocoddyl::DifferentialActionDataContactFwdDynamics*>(runningDAM_data.get());
+  crocoddyl::DifferentialActionDataContactFwdDynamics *d =
+      static_cast<crocoddyl::DifferentialActionDataContactFwdDynamics *>(runningDAM_data.get());
   boost::shared_ptr<crocoddyl::ActuationDataAbstract> actuation_data = actuation->createData();
   boost::shared_ptr<crocoddyl::CostDataAbstract> goalTrackingCost_data = goalTrackingCost->createData(&d->multibody);
   boost::shared_ptr<crocoddyl::CostDataAbstract> xRegCost_data = xRegCost->createData(&d->multibody);
@@ -146,12 +148,17 @@ int main(int argc, char* argv[]) {
 
   Eigen::ArrayXd duration(T);
 
-  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd) x1s;  // (T, state->rand());
-  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd) x2s;  // (T, state->rand());
-  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd) us;   // (T, state->rand());
-  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd) dxs(T, Eigen::VectorXd::Zero(2 * model.nv));
+  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd)
+  x1s; // (T, state->rand());
+  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd)
+  x2s; // (T, state->rand());
+  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd)
+  us; // (T, state->rand());
+  PINOCCHIO_ALIGNED_STD_VECTOR(Eigen::VectorXd)
+  dxs(T, Eigen::VectorXd::Zero(2 * model.nv));
 
-  for (size_t i = 0; i < T; ++i) {
+  for (size_t i = 0; i < T; ++i)
+  {
     x1s.push_back(state->rand());
     x2s.push_back(state->rand());
     us.push_back(Eigen::VectorXd(actuation->get_nu()));
@@ -165,7 +172,8 @@ int main(int argc, char* argv[]) {
             << "MIN(in us)" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::difference(model, x1s[_smooth].head(model.nq), x2s[_smooth].head(model.nq),
                           dxs[_smooth].head(model.nv));
@@ -175,7 +183,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::integrate(model, x1s[_smooth].head(model.nq), dxs[_smooth].head(model.nv), x2s[_smooth].head(model.nq));
     duration[_smooth] = timer.get_us_duration();
@@ -184,7 +193,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->diff(x1s[_smooth], x2s[_smooth], dxs[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -193,7 +203,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->integrate(x1s[_smooth], dxs[_smooth], x2s[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -204,7 +215,8 @@ int main(int argc, char* argv[]) {
   Eigen::MatrixXd Jfirst(2 * model.nv, 2 * model.nv), Jsecond(2 * model.nv, 2 * model.nv);
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::dIntegrate(model, x1s[_smooth].head(model.nq), dxs[_smooth].head(model.nv),
                           Jsecond.bottomLeftCorner(model.nv, model.nv), pinocchio::ARG1);
@@ -214,7 +226,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::dIntegrate(model, x1s[_smooth].head(model.nq), dxs[_smooth].head(model.nv),
                           Jsecond.bottomLeftCorner(model.nv, model.nv), pinocchio::ARG0);
@@ -225,7 +238,8 @@ int main(int argc, char* argv[]) {
 
   duration.setZero();
   Eigen::MatrixXd Jin(Eigen::MatrixXd::Random(model.nv, 2 * model.nv));
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::dIntegrateTransport(model, x1s[_smooth].head(model.nq), dxs[_smooth].head(model.nv), Jin,
                                    pinocchio::ARG0);
@@ -237,7 +251,8 @@ int main(int argc, char* argv[]) {
   duration.setZero();
   Jin = Eigen::MatrixXd::Random(model.nv, 2 * model.nv);
   Eigen::MatrixXd Jout(Eigen::MatrixXd::Random(model.nv, 2 * model.nv));
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     pinocchio::dIntegrateTransport(model, x1s[_smooth].head(model.nq), dxs[_smooth].head(model.nv), Jin, Jout,
                                    pinocchio::ARG0);
@@ -247,7 +262,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jdiff(x1s[_smooth], x2s[_smooth], Jfirst, Jsecond, crocoddyl::both);
     duration[_smooth] = timer.get_us_duration();
@@ -256,7 +272,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jdiff(x1s[_smooth], x2s[_smooth], Jfirst, Jsecond, crocoddyl::first);
     duration[_smooth] = timer.get_us_duration();
@@ -265,7 +282,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jdiff(x1s[_smooth], x2s[_smooth], Jfirst, Jsecond, crocoddyl::second);
     duration[_smooth] = timer.get_us_duration();
@@ -274,7 +292,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jintegrate(x1s[_smooth], dxs[_smooth], Jfirst, Jsecond, crocoddyl::both);
     duration[_smooth] = timer.get_us_duration();
@@ -284,7 +303,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jintegrate(x1s[_smooth], dxs[_smooth], Jfirst, Jsecond, crocoddyl::first);
     duration[_smooth] = timer.get_us_duration();
@@ -294,7 +314,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     state->Jintegrate(x1s[_smooth], dxs[_smooth], Jfirst, Jsecond, crocoddyl::second);
     duration[_smooth] = timer.get_us_duration();
@@ -306,7 +327,8 @@ int main(int argc, char* argv[]) {
   /**************************************************************/
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     activationQuad->calc(activationQuad_data, dxs[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -316,7 +338,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     activationQuad->calcDiff(activationQuad_data, dxs[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -328,7 +351,8 @@ int main(int argc, char* argv[]) {
   /*************************************Actuation*******************/
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     actuation->calc(actuation_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -338,7 +362,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     actuation->calcDiff(actuation_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -349,7 +374,8 @@ int main(int argc, char* argv[]) {
 
   /*******************************Cost****************************/
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     goalTrackingCost->calc(goalTrackingCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -359,7 +385,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     goalTrackingCost->calcDiff(goalTrackingCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -369,7 +396,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     xRegCost->calc(xRegCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -379,7 +407,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     xRegCost->calcDiff(xRegCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -389,7 +418,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     uRegCost->calc(uRegCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -399,7 +429,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     uRegCost->calcDiff(uRegCost_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -409,7 +440,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningCostModel->calc(runningCostModel_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -419,7 +451,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningCostModel->calcDiff(runningCostModel_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -429,7 +462,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningDAM->calc(runningDAM_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -439,7 +473,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningDAM->calcDiff(runningDAM_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -449,7 +484,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningModel->calc(runningModel_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
@@ -459,7 +495,8 @@ int main(int argc, char* argv[]) {
             << duration.maxCoeff() << " us\t" << duration.minCoeff() << " us" << std::endl;
 
   duration.setZero();
-  SMOOTH(T) {
+  SMOOTH(T)
+  {
     timer.reset();
     runningModel->calcDiff(runningModel_data, x1s[_smooth], us[_smooth]);
     duration[_smooth] = timer.get_us_duration();
