@@ -11,7 +11,8 @@
 
 #include "crocoddyl/core/utils/deprecate.hpp"
 
-namespace crocoddyl {
+namespace crocoddyl
+{
 
 // action
 template <typename Scalar>
@@ -19,11 +20,6 @@ class ActionModelAbstractTpl;
 
 template <typename Scalar>
 struct ActionDataAbstractTpl;
-
-template <typename Scalar>
-class ActionModelUnicycleTpl;
-template <typename Scalar>
-struct ActionDataUnicycleTpl;
 
 template <typename Scalar>
 class ActionModelLQRTpl;
@@ -210,8 +206,6 @@ struct ActionDataCodeGenTpl;
 /********************Template Instantiation*************/
 typedef ActionModelAbstractTpl<double> ActionModelAbstract;
 typedef ActionDataAbstractTpl<double> ActionDataAbstract;
-typedef ActionModelUnicycleTpl<double> ActionModelUnicycle;
-typedef ActionDataUnicycleTpl<double> ActionDataUnicycle;
 typedef ActionModelLQRTpl<double> ActionModelLQR;
 typedef ActionDataLQRTpl<double> ActionDataLQR;
 
