@@ -164,10 +164,6 @@ struct CostDataResidualTpl;
 template <typename Scalar>
 class CostModelControlTpl;
 
-// shooting
-template <typename Scalar>
-class ShootingProblemTpl;
-
 // Numdiff
 template <typename Scalar>
 class ActionModelNumDiffTpl;
@@ -269,8 +265,6 @@ typedef CostDataSumTpl<double> CostDataSum;
 typedef CostModelResidualTpl<double> CostModelResidual;
 typedef CostDataResidualTpl<double> CostDataResidual;
 DEPRECATED("Use ResidualModelControl with CostModelResidual", typedef CostModelControlTpl<double> CostModelControl;)
-
-typedef ShootingProblemTpl<double> ShootingProblem;
 
 typedef ActionModelNumDiffTpl<double> ActionModelNumDiff;
 typedef ActionDataNumDiffTpl<double> ActionDataNumDiff;

@@ -33,7 +33,6 @@ using namespace crocoddyl;
 std::tuple<shared_ptr<ActionModelAbstractTpl<double>>, shared_ptr<ActionModelAbstractTpl<double>>>
 build_arm_action_models()
 {
-    typedef typename MathBaseTpl<double>::VectorXs VectorXs;
     typedef typename MathBaseTpl<double>::Vector3s Vector3s;
     typedef typename MathBaseTpl<double>::Matrix3s Matrix3s;
 
@@ -86,7 +85,7 @@ build_arm_action_models()
     return {runningModel, terminalModel};
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     unsigned int N = 100;  // number of nodes
     unsigned int T = 5e3;  // number of trials
@@ -111,13 +110,13 @@ int main()
     // For this optimal control problem, we define 100 knots (or running action
     // models) plus a terminal knot
     std::vector<shared_ptr<ActionModelAbstract>> runningModels(N, runningModel);
-    auto problem = boost::make_shared<ShootingProblem>(x0, runningModels, terminalModel);
+    ShootingProblem problem(x0, runningModels, terminalModel);
     std::vector<Eigen::VectorXd> xs(N + 1, x0);
     std::vector<Eigen::VectorXd> us(N, Eigen::VectorXd::Zero(runningModel->get_nu()));
     for (unsigned int i = 0; i < N; ++i)
     {
-        const shared_ptr<ActionModelAbstract> &model = problem->get_runningModels()[i];
-        const shared_ptr<ActionDataAbstract> &data = problem->get_runningDatas()[i];
+        const shared_ptr<ActionModelAbstract> &model = problem.get_runningModels()[i];
+        const shared_ptr<ActionDataAbstract> &data = problem.get_runningDatas()[i];
         model->quasiStatic(data, us[i], x0);
     }
 
@@ -143,7 +142,7 @@ int main()
     for (unsigned int i = 0; i < T; ++i)
     {
         Timer timer;
-        problem->calc(xs, us);
+        problem.calc(xs, us);
         duration[i] = timer.get_duration();
     }
 
@@ -157,7 +156,7 @@ int main()
     for (unsigned int i = 0; i < T; ++i)
     {
         Timer timer;
-        problem->calcDiff(xs, us);
+        problem.calcDiff(xs, us);
         duration[i] = timer.get_duration();
     }
 
