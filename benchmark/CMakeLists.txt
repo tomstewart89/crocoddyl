@@ -1,6 +1,7 @@
 SET(${PROJECT_NAME}_BENCHMARK
-  unicycle-optctrl
-  arm-manipulation-optctrl
+  # unicycle-optctrl
+  # arm-manipulation-optctrl
+  whole-body-optctrl
   )
 
 FOREACH(BENCHMARK_NAME ${${PROJECT_NAME}_BENCHMARK})
