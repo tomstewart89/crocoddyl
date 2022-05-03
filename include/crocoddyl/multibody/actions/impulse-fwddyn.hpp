@@ -9,123 +9,126 @@
 #ifndef CROCODDYL_MULTIBODY_ACTIONS_IMPULSE_FWDDYN_HPP_
 #define CROCODDYL_MULTIBODY_ACTIONS_IMPULSE_FWDDYN_HPP_
 
+#include <pinocchio/algorithm/centroidal.hpp>
+#include <pinocchio/algorithm/compute-all-terms.hpp>
+#include <pinocchio/algorithm/contact-dynamics.hpp>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics-derivatives.hpp>
+#include <pinocchio/algorithm/rnea-derivatives.hpp>
 #include <stdexcept>
 
-#include <pinocchio/algorithm/compute-all-terms.hpp>
-#include <pinocchio/algorithm/frames.hpp>
-#include <pinocchio/algorithm/contact-dynamics.hpp>
-#include <pinocchio/algorithm/centroidal.hpp>
-#include <pinocchio/algorithm/rnea-derivatives.hpp>
-#include <pinocchio/algorithm/kinematics-derivatives.hpp>
-
-#include "crocoddyl/multibody/fwd.hpp"
-#include "crocoddyl/core/utils/exception.hpp"
 #include "crocoddyl/core/action-base.hpp"
 #include "crocoddyl/core/costs/cost-sum.hpp"
-#include "crocoddyl/multibody/states/multibody.hpp"
-#include "crocoddyl/multibody/actuations/floating-base.hpp"
-#include "crocoddyl/multibody/impulses/multiple-impulses.hpp"
-#include "crocoddyl/multibody/data/impulses.hpp"
+#include "crocoddyl/core/utils/exception.hpp"
 #include "crocoddyl/multibody/actions/impulse-fwddyn.hpp"
+#include "crocoddyl/multibody/actuations/floating-base.hpp"
+#include "crocoddyl/multibody/data/impulses.hpp"
+#include "crocoddyl/multibody/fwd.hpp"
+#include "crocoddyl/multibody/impulses/multiple-impulses.hpp"
+#include "crocoddyl/multibody/states/multibody.hpp"
 
-namespace crocoddyl {
+namespace crocoddyl
+{
 
 template <typename _Scalar>
-class ActionModelImpulseFwdDynamicsTpl : public ActionModelAbstractTpl<_Scalar> {
- public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+class ActionModelImpulseFwdDynamicsTpl : public ActionModelAbstractTpl<_Scalar>
+{
+   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef _Scalar Scalar;
-  typedef ActionModelAbstractTpl<Scalar> Base;
-  typedef ActionDataImpulseFwdDynamicsTpl<Scalar> Data;
-  typedef MathBaseTpl<Scalar> MathBase;
-  typedef CostModelSumTpl<Scalar> CostModelSum;
-  typedef StateMultibodyTpl<Scalar> StateMultibody;
-  typedef ActionDataAbstractTpl<Scalar> ActionDataAbstract;
-  typedef ImpulseModelMultipleTpl<Scalar> ImpulseModelMultiple;
-  typedef typename MathBase::VectorXs VectorXs;
-  typedef typename MathBase::MatrixXs MatrixXs;
+    typedef _Scalar Scalar;
+    typedef ActionModelAbstractTpl<Scalar> Base;
+    typedef ActionDataImpulseFwdDynamicsTpl<Scalar> Data;
+    typedef MathBaseTpl<Scalar> MathBase;
+    typedef CostModelSumTpl<Scalar> CostModelSum;
+    typedef StateMultibodyTpl<Scalar> StateMultibody;
+    typedef ActionDataAbstractTpl<Scalar> ActionDataAbstract;
+    typedef ImpulseModelMultipleTpl<Scalar> ImpulseModelMultiple;
+    typedef typename MathBase::VectorXs VectorXs;
+    typedef typename MathBase::MatrixXs MatrixXs;
 
-  ActionModelImpulseFwdDynamicsTpl(boost::shared_ptr<StateMultibody> state,
-                                   boost::shared_ptr<ImpulseModelMultiple> impulses,
-                                   boost::shared_ptr<CostModelSum> costs, const Scalar r_coeff = Scalar(0.),
-                                   const Scalar JMinvJt_damping = Scalar(0.), const bool enable_force = false);
-  virtual ~ActionModelImpulseFwdDynamicsTpl();
+    ActionModelImpulseFwdDynamicsTpl(boost::shared_ptr<StateMultibody> state,
+                                     boost::shared_ptr<ImpulseModelMultiple> impulses,
+                                     boost::shared_ptr<CostModelSum> costs, const Scalar r_coeff = Scalar(0.),
+                                     const Scalar JMinvJt_damping = Scalar(0.), const bool enable_force = false);
+    virtual ~ActionModelImpulseFwdDynamicsTpl();
 
-  virtual void calc(const boost::shared_ptr<ActionDataAbstract>& data, const Eigen::Ref<const VectorXs>& x,
-                    const Eigen::Ref<const VectorXs>& u);
-  virtual void calcDiff(const boost::shared_ptr<ActionDataAbstract>& data, const Eigen::Ref<const VectorXs>& x,
-                        const Eigen::Ref<const VectorXs>& u);
-  virtual boost::shared_ptr<ActionDataAbstract> createData();
-  virtual bool checkData(const boost::shared_ptr<ActionDataAbstract>& data);
+    virtual void calc(const boost::shared_ptr<ActionDataAbstract>& data, const Eigen::Ref<const VectorXs>& x,
+                      const Eigen::Ref<const VectorXs>& u);
+    virtual void calcDiff(const boost::shared_ptr<ActionDataAbstract>& data, const Eigen::Ref<const VectorXs>& x,
+                          const Eigen::Ref<const VectorXs>& u);
+    virtual boost::shared_ptr<ActionDataAbstract> createData();
+    virtual bool checkData(const boost::shared_ptr<ActionDataAbstract>& data);
 
-  const boost::shared_ptr<ImpulseModelMultiple>& get_impulses() const;
-  const boost::shared_ptr<CostModelSum>& get_costs() const;
-  pinocchio::ModelTpl<Scalar>& get_pinocchio() const;
-  const VectorXs& get_armature() const;
-  const Scalar get_restitution_coefficient() const;
-  const Scalar get_damping_factor() const;
+    const boost::shared_ptr<ImpulseModelMultiple>& get_impulses() const;
+    const boost::shared_ptr<CostModelSum>& get_costs() const;
+    pinocchio::ModelTpl<Scalar>& get_pinocchio() const;
+    const VectorXs& get_armature() const;
+    const Scalar get_restitution_coefficient() const;
+    const Scalar get_damping_factor() const;
 
-  void set_armature(const VectorXs& armature);
-  void set_restitution_coefficient(const Scalar r_coeff);
-  void set_damping_factor(const Scalar damping);
+    void set_armature(const VectorXs& armature);
+    void set_restitution_coefficient(const Scalar r_coeff);
+    void set_damping_factor(const Scalar damping);
 
-  /**
-   * @brief Print relevant information of the impulase forward-dynamics model
-   *
-   * @param[out] os  Output stream object
-   */
-  virtual void print(std::ostream& os) const;
+    /**
+     * @brief Print relevant information of the impulase forward-dynamics model
+     *
+     * @param[out] os  Output stream object
+     */
+    virtual void print(std::ostream& os) const;
 
- protected:
-  using Base::state_;  //!< Model of the state
+   protected:
+    using Base::state_;  //!< Model of the state
 
- private:
-  boost::shared_ptr<ImpulseModelMultiple> impulses_;
-  boost::shared_ptr<CostModelSum> costs_;
-  pinocchio::ModelTpl<Scalar>& pinocchio_;
-  bool with_armature_;
-  VectorXs armature_;
-  Scalar r_coeff_;
-  Scalar JMinvJt_damping_;
-  bool enable_force_;
-  pinocchio::MotionTpl<Scalar> gravity_;
+   private:
+    boost::shared_ptr<ImpulseModelMultiple> impulses_;
+    boost::shared_ptr<CostModelSum> costs_;
+    pinocchio::ModelTpl<Scalar>& pinocchio_;
+    bool with_armature_;
+    VectorXs armature_;
+    Scalar r_coeff_;
+    Scalar JMinvJt_damping_;
+    bool enable_force_;
+    pinocchio::MotionTpl<Scalar> gravity_;
 };
 
 template <typename _Scalar>
-struct ActionDataImpulseFwdDynamicsTpl : public ActionDataAbstractTpl<_Scalar> {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  typedef _Scalar Scalar;
-  typedef MathBaseTpl<Scalar> MathBase;
-  typedef ActionDataAbstractTpl<Scalar> Base;
-  typedef typename MathBase::VectorXs VectorXs;
-  typedef typename MathBase::MatrixXs MatrixXs;
+struct ActionDataImpulseFwdDynamicsTpl : public ActionDataAbstractTpl<_Scalar>
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    typedef _Scalar Scalar;
+    typedef MathBaseTpl<Scalar> MathBase;
+    typedef ActionDataAbstractTpl<Scalar> Base;
+    typedef typename MathBase::VectorXs VectorXs;
+    typedef typename MathBase::MatrixXs MatrixXs;
 
-  template <template <typename Scalar> class Model>
-  explicit ActionDataImpulseFwdDynamicsTpl(Model<Scalar>* const model)
-      : Base(model),
-        pinocchio(pinocchio::DataTpl<Scalar>(model->get_pinocchio())),
-        multibody(&pinocchio, model->get_impulses()->createData(&pinocchio)),
-        costs(model->get_costs()->createData(&multibody)),
-        vnone(model->get_state()->get_nv()),
-        Kinv(model->get_state()->get_nv() + model->get_impulses()->get_nc_total(),
-             model->get_state()->get_nv() + model->get_impulses()->get_nc_total()),
-        df_dx(model->get_impulses()->get_nc_total(), model->get_state()->get_ndx()),
-        dgrav_dq(model->get_state()->get_nv(), model->get_state()->get_nv()) {
-    costs->shareMemory(this);
-    vnone.setZero();
-    Kinv.setZero();
-    df_dx.setZero();
-    dgrav_dq.setZero();
-  }
+    template <template <typename Scalar> class Model>
+    explicit ActionDataImpulseFwdDynamicsTpl(Model<Scalar>* const model)
+        : Base(model),
+          pinocchio(pinocchio::DataTpl<Scalar>(model->get_pinocchio())),
+          multibody(&pinocchio, model->get_impulses()->createData(&pinocchio)),
+          costs(model->get_costs()->createData(&multibody)),
+          vnone(model->get_state()->get_nv()),
+          Kinv(model->get_state()->get_nv() + model->get_impulses()->get_nc_total(),
+               model->get_state()->get_nv() + model->get_impulses()->get_nc_total()),
+          df_dx(model->get_impulses()->get_nc_total(), model->get_state()->get_ndx()),
+          dgrav_dq(model->get_state()->get_nv(), model->get_state()->get_nv())
+    {
+        costs->shareMemory(this);
+        vnone.setZero();
+        Kinv.setZero();
+        df_dx.setZero();
+        dgrav_dq.setZero();
+    }
 
-  pinocchio::DataTpl<Scalar> pinocchio;
-  DataCollectorMultibodyInImpulseTpl<Scalar> multibody;
-  boost::shared_ptr<CostDataSumTpl<Scalar> > costs;
-  VectorXs vnone;
-  MatrixXs Kinv;
-  MatrixXs df_dx;
-  MatrixXs dgrav_dq;
+    pinocchio::DataTpl<Scalar> pinocchio;
+    DataCollectorMultibodyInImpulseTpl<Scalar> multibody;
+    boost::shared_ptr<CostDataSumTpl<Scalar> > costs;
+    VectorXs vnone;
+    MatrixXs Kinv;
+    MatrixXs df_dx;
+    MatrixXs dgrav_dq;
 };
 
 }  // namespace crocoddyl

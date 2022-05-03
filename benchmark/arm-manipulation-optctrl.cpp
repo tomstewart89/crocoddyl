@@ -101,8 +101,10 @@ int main(int argc, char *argv[])
 
     // Get the initial state
     shared_ptr<StateMultibody> state = boost::static_pointer_cast<StateMultibody>(runningModel->get_state());
+
     std::cout << "NQ: " << state->get_nq() << std::endl;
     std::cout << "Number of nodes: " << N << std::endl << std::endl;
+
     Eigen::VectorXd q0 = Eigen::VectorXd::Random(state->get_nq());
     Eigen::VectorXd x0(state->get_nx());
     x0 << q0, Eigen::VectorXd::Random(state->get_nv());
@@ -166,3 +168,179 @@ int main(int argc, char *argv[])
     std::cout << "  ShootingProblem.calcDiff [ms]: " << avrg_duration << " (" << min_duration << "-" << max_duration
               << ")" << std::endl;
 }
+
+// import sys
+
+// import crocoddyl
+// import numpy as np
+// import example_robot_data
+// import pinocchio
+
+// # Load robot
+// robot = example_robot_data.load("talos")
+
+// # Create data structures
+// rdata = robot.model.createData()
+// state = crocoddyl.StateMultibody(robot.model)
+// actuation = crocoddyl.ActuationModelFloatingBase(state)
+
+// # Set integration time
+// DT = 5e-2
+// T = 60
+// target = np.array([0.5, 0, 1.8])
+
+// # Initialize reference state, target and reference CoM
+// rightFoot = "right_sole_link"
+// leftFoot = "left_sole_link"
+// endEffector = "gripper_left_joint"
+// endEffectorId = robot.model.getFrameId(endEffector)
+// rightFootId = robot.model.getFrameId(rightFoot)
+// leftFootId = robot.model.getFrameId(leftFoot)
+// q0 = robot.model.referenceConfigurations["half_sitting"]
+// x0 = np.concatenate([q0, np.zeros(robot.model.nv)])
+// pinocchio.forwardKinematics(robot.model, rdata, q0)
+// pinocchio.updateFramePlacements(robot.model, rdata)
+
+// # Initialize Gepetto viewer
+// display = crocoddyl.GepettoDisplay(robot, frameNames=[rightFoot, leftFoot])
+// display.robot.viewer.gui.addSphere("world/point", 0.05, [1.0, 0.0, 0.0, 1.0])
+// display.robot.viewer.gui.applyConfiguration("world/point", target.tolist() + [0.0, 0.0, 0.0, 1.0])
+
+// # Add contact to the model
+// contactModel = crocoddyl.ContactModelMultiple(state, actuation.nu)
+// supportContactModelLeft = crocoddyl.ContactModel6D(
+//     state, leftFootId, pinocchio.SE3.Identity(), actuation.nu, np.array([0, 0])
+// )
+// contactModel.addContact(leftFoot + "_contact", supportContactModelLeft)
+// supportContactModelRight = crocoddyl.ContactModel6D(
+//     state, rightFootId, pinocchio.SE3.Identity(), actuation.nu, np.array([0, 0])
+// )
+// contactModel.addContact(rightFoot + "_contact", supportContactModelRight)
+
+// contactModelLeft = crocoddyl.ContactModelMultiple(state, actuation.nu)
+// contactModelLeft.addContact(
+//     "contact",
+//     crocoddyl.ContactModel6D(
+//         state, leftFootId, pinocchio.SE3.Identity(), actuation.nu, np.array([0, 0])
+//     ),
+// )
+
+// contactModelRight = crocoddyl.ContactModelMultiple(state, actuation.nu)
+// contactModelRight.addContact(
+//     "contact",
+//     crocoddyl.ContactModel6D(
+//         state, rightFootId, pinocchio.SE3.Identity(), actuation.nu, np.array([0, 0])
+//     ),
+// )
+
+// # Cost for self-collision
+// maxfloat = sys.float_info.max
+// xlb = np.concatenate(
+//     [
+//         -maxfloat * np.ones(6),  # dimension of the SE(3) manifold
+//         robot.model.lowerPositionLimit[7:],
+//         -maxfloat * np.ones(state.nv),
+//     ]
+// )
+// xub = np.concatenate(
+//     [
+//         maxfloat * np.ones(6),  # dimension of the SE(3) manifold
+//         robot.model.upperPositionLimit[7:],
+//         maxfloat * np.ones(state.nv),
+//     ]
+// )
+// bounds = crocoddyl.ActivationBounds(xlb, xub, 1.0)
+// xLimitResidual = crocoddyl.ResidualModelState(state, x0, actuation.nu)
+// xLimitActivation = crocoddyl.ActivationModelQuadraticBarrier(bounds)
+// limitCost = crocoddyl.CostModelResidual(state, xLimitActivation, xLimitResidual)
+
+// # Cost for state and control
+// xResidual = crocoddyl.ResidualModelState(state, x0, actuation.nu)
+// xActivation = crocoddyl.ActivationModelWeightedQuad(
+//     np.array([0] * 3 + [10.0] * 3 + [0.01] * (state.nv - 6) + [10] * state.nv) ** 2
+// )
+// uResidual = crocoddyl.ResidualModelControl(state, actuation.nu)
+// xTActivation = crocoddyl.ActivationModelWeightedQuad(
+//     np.array([0] * 3 + [10.0] * 3 + [0.01] * (state.nv - 6) + [100] * state.nv) ** 2
+// )
+// xRegCost = crocoddyl.CostModelResidual(state, xActivation, xResidual)
+// uRegCost = crocoddyl.CostModelResidual(state, uResidual)
+// xRegTermCost = crocoddyl.CostModelResidual(state, xTActivation, xResidual)
+
+// # Cost for target reaching
+// framePlacementResidual = crocoddyl.ResidualModelFramePlacement(
+//     state, endEffectorId, pinocchio.SE3(np.eye(3), target), actuation.nu
+// )
+// framePlacementActivation = crocoddyl.ActivationModelWeightedQuad(
+//     np.array([1] * 3 + [0.0001] * 3) ** 2
+// )
+// goalTrackingCost = crocoddyl.CostModelResidual(
+//     state, framePlacementActivation, framePlacementResidual
+// )
+
+// # Create cost model per each action model
+// runningCostModel = crocoddyl.CostModelSum(state, actuation.nu)
+// terminalCostModel = crocoddyl.CostModelSum(state, actuation.nu)
+
+// # Then let's added the running and terminal cost functions
+// runningCostModel.addCost("gripperPose", goalTrackingCost, 1e2)
+// runningCostModel.addCost("stateReg", xRegCost, 1e-3)
+// runningCostModel.addCost("ctrlReg", uRegCost, 1e-4)
+// runningCostModel.addCost("limitCost", limitCost, 1e3)
+
+// terminalCostModel.addCost("gripperPose", goalTrackingCost, 1e2)
+// terminalCostModel.addCost("stateReg", xRegTermCost, 1e-3)
+// terminalCostModel.addCost("limitCost", limitCost, 1e3)
+
+// # Create the action model
+// dmodelRunningLeft = crocoddyl.DifferentialActionModelContactFwdDynamics(
+//     state, actuation, contactModelLeft, runningCostModel
+// )
+// dmodelTerminalLeft = crocoddyl.DifferentialActionModelContactFwdDynamics(
+//     state, actuation, contactModelLeft, terminalCostModel
+// )
+
+// dmodelRunning = crocoddyl.DifferentialActionModelContactFwdDynamics(
+//     state, actuation, contactModelRight, runningCostModel
+// )
+// dmodelTerminal = crocoddyl.DifferentialActionModelContactFwdDynamics(
+//     state, actuation, contactModelRight, terminalCostModel
+// )
+// runningModelLeft = crocoddyl.IntegratedActionModelEuler(dmodelRunningLeft, DT)
+// runningModel = crocoddyl.IntegratedActionModelEuler(dmodelRunning, DT)
+// terminalModel = crocoddyl.IntegratedActionModelEuler(dmodelTerminal, 0)
+
+// # Problem definition
+// x0 = np.concatenate([q0, pinocchio.utils.zero(state.nv)])
+// problem = crocoddyl.ShootingProblem(x0, [runningModel] * T + [runningModelLeft] * T, terminalModel)
+
+// # Creating the DDP solver for this OC problem, defining a logger
+// solver = crocoddyl.SolverFDDP(problem)
+// solver.setCallbacks(
+//     [
+//         crocoddyl.CallbackVerbose(),
+//         crocoddyl.CallbackDisplay(
+//             crocoddyl.GepettoDisplay(robot, 4, 4, frameNames=[rightFoot, leftFoot])
+//         ),
+//     ]
+// )
+
+// # Solving it with the FDDP algorithm
+// xs = [x0] * (solver.problem.T + 1)
+// us = solver.problem.quasiStatic([x0] * solver.problem.T)
+// solver.solve(xs, us, 500, False, 0.1)
+
+// # Visualizing the solution in gepetto-viewer
+// display.displayFromSolver(solver)
+
+// # Get final state and end effector position
+// xT = solver.xs[-1]
+// pinocchio.forwardKinematics(robot.model, rdata, xT[: state.nq])
+// pinocchio.updateFramePlacements(robot.model, rdata)
+// com = pinocchio.centerOfMass(robot.model, rdata, xT[: state.nq])
+// finalPosEff = np.array(rdata.oMf[robot.model.getFrameId("gripper_left_joint")].translation.T.flat)
+
+// print("Finally reached = ", finalPosEff)
+// print("Distance between hand and target = ", np.linalg.norm(finalPosEff - target))
+// print("Distance to default state = ", np.linalg.norm(x0 - np.array(xT.flat)))
+// # print("XY distance to CoM reference = ", np.linalg.norm(com[:2] - comRef[:2]))

@@ -6,7 +6,7 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "crocoddyl/core/solver-base.hpp"
+#include "crocoddyl/core/solvers/solver-base.hpp"
 
 #include "crocoddyl/core/utils/exception.hpp"
 
