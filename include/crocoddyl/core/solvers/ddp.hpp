@@ -66,10 +66,12 @@ class SolverDDP : public SolverAbstract
     virtual bool solve(const std::vector<Eigen::VectorXd>& init_xs = DEFAULT_VECTOR,
                        const std::vector<Eigen::VectorXd>& init_us = DEFAULT_VECTOR, const std::size_t maxiter = 100,
                        const bool is_feasible = false, const double regInit = 1e-9);
-    virtual void computeDirection(const bool recalc = true);
-    virtual double tryStep(const double steplength = 1);
+    virtual void computeDirection(const bool) {}
+    virtual double tryStep(const double) { return 0; }
     virtual double stoppingCriteria();
-    virtual const Eigen::Vector2d& expectedImprovement();
+    virtual const Eigen::Vector2d& expectedImprovement() { return d_; }
+
+    Eigen::Vector2d expected_improvement();
 
     /**
      * @brief Update the Jacobian and Hessian of the optimal control problem
@@ -156,160 +158,6 @@ class SolverDDP : public SolverAbstract
      */
     virtual void allocateData();
 
-    /**
-     * @brief Return the regularization factor used to increase the damping value
-     */
-    double get_reg_incfactor() const;
-
-    /**
-     * @brief Return the regularization factor used to decrease the damping value
-     */
-    double get_reg_decfactor() const;
-
-    /**
-     * @brief Return the regularization factor used to decrease / increase it
-     */
-    DEPRECATED("Use get_reg_incfactor() or get_reg_decfactor()", double get_regfactor() const;)
-
-    /**
-     * @brief Return the minimum regularization value
-     */
-    double get_reg_min() const;
-    DEPRECATED("Use get_reg_min()", double get_regmin() const);
-
-    /**
-     * @brief Return the maximum regularization value
-     */
-    double get_reg_max() const;
-    DEPRECATED("Use get_reg_max()", double get_regmax() const);
-
-    /**
-     * @brief Return the set of step lengths using by the line-search procedure
-     */
-    const std::vector<double>& get_alphas() const;
-
-    /**
-     * @brief Return the step-length threshold used to decrease regularization
-     */
-    double get_th_stepdec() const;
-
-    /**
-     * @brief Return the step-length threshold used to increase regularization
-     */
-    double get_th_stepinc() const;
-
-    /**
-     * @brief Return the tolerance of the expected gradient used for testing the step
-     */
-    double get_th_grad() const;
-
-    /**
-     * @brief Return the threshold for accepting a gap as non-zero
-     */
-    double get_th_gaptol() const;
-
-    /**
-     * @brief Return the Hessian of the Value function \f$V_{\mathbf{xx}_s}\f$
-     */
-    const std::vector<Eigen::MatrixXd>& get_Vxx() const;
-
-    /**
-     * @brief Return the Hessian of the Value function \f$V_{\mathbf{x}_s}\f$
-     */
-    const std::vector<Eigen::VectorXd>& get_Vx() const;
-
-    /**
-     * @brief Return the Hessian of the Hamiltonian function \f$\mathbf{Q}_{\mathbf{xx}_s}\f$
-     */
-    const std::vector<Eigen::MatrixXd>& get_Qxx() const;
-
-    /**
-     * @brief Return the Hessian of the Hamiltonian function \f$\mathbf{Q}_{\mathbf{xu}_s}\f$
-     */
-    const std::vector<Eigen::MatrixXd>& get_Qxu() const;
-
-    /**
-     * @brief Return the Hessian of the Hamiltonian function \f$\mathbf{Q}_{\mathbf{uu}_s}\f$
-     */
-    const std::vector<Eigen::MatrixXd>& get_Quu() const;
-
-    /**
-     * @brief Return the Jacobian of the Hamiltonian function \f$\mathbf{Q}_{\mathbf{x}_s}\f$
-     */
-    const std::vector<Eigen::VectorXd>& get_Qx() const;
-
-    /**
-     * @brief Return the Jacobian of the Hamiltonian function \f$\mathbf{Q}_{\mathbf{u}_s}\f$
-     */
-    const std::vector<Eigen::VectorXd>& get_Qu() const;
-
-    /**
-     * @brief Return the feedback gains \f$\mathbf{K}_{s}\f$
-     */
-    const std::vector<MatrixXdRowMajor>& get_K() const;
-
-    /**
-     * @brief Return the feedforward gains \f$\mathbf{k}_{s}\f$
-     */
-    const std::vector<Eigen::VectorXd>& get_k() const;
-
-    /**
-     * @brief Return the gaps \f$\mathbf{\bar{f}}_{s}\f$
-     */
-    const std::vector<Eigen::VectorXd>& get_fs() const;
-
-    /**
-     * @brief Modify the regularization factor used to increase the damping value
-     */
-    void set_reg_incfactor(const double reg_factor);
-
-    /**
-     * @brief Modify the regularization factor used to decrease the damping value
-     */
-    void set_reg_decfactor(const double reg_factor);
-
-    /**
-     * @brief Modify the regularization factor used to decrease / increase it
-     */
-    DEPRECATED("Use set_reg_incfactor() or set_reg_decfactor()", void set_regfactor(const double reg_factor);)
-
-    /**
-     * @brief Modify the minimum regularization value
-     */
-    void set_reg_min(const double regmin);
-    DEPRECATED("Use set_reg_min()", void set_regmin(const double regmin));
-
-    /**
-     * @brief Modify the maximum regularization value
-     */
-    void set_reg_max(const double regmax);
-    DEPRECATED("Use set_reg_max()", void set_regmax(const double regmax));
-
-    /**
-     * @brief Modify the set of step lengths using by the line-search procedure
-     */
-    void set_alphas(const std::vector<double>& alphas);
-
-    /**
-     * @brief Modify the step-length threshold used to decrease regularization
-     */
-    void set_th_stepdec(const double th_step);
-
-    /**
-     * @brief Modify the step-length threshold used to increase regularization
-     */
-    void set_th_stepinc(const double th_step);
-
-    /**
-     * @brief Modify the tolerance of the expected gradient used for testing the step
-     */
-    void set_th_grad(const double th_grad);
-
-    /**
-     * @brief Modify the threshold for accepting a gap as non-zero
-     */
-    void set_th_gaptol(const double th_gaptol);
-
    protected:
     double reg_incfactor_;  //!< Regularization factor used to increase the damping value
     double reg_decfactor_;  //!< Regularization factor used to decrease the damping value
@@ -334,18 +182,17 @@ class SolverDDP : public SolverAbstract
     std::vector<Eigen::VectorXd> k_;    //!< Feed-forward terms
     std::vector<Eigen::VectorXd> fs_;   //!< Gaps/defects between shooting nodes
 
-    Eigen::VectorXd xnext_;                              //!< Next state
-    MatrixXdRowMajor FxTVxx_p_;                          //!< fxTVxx_p_
-    std::vector<MatrixXdRowMajor> FuTVxx_p_;             //!< fuTVxx_p_
-    Eigen::VectorXd fTVxx_p_;                            //!< fTVxx_p term
-    std::vector<Eigen::LLT<Eigen::MatrixXd> > Quu_llt_;  //!< Cholesky LLT solver
-    std::vector<Eigen::VectorXd> Quuk_;                  //!< Quuk term
-    std::vector<double> alphas_;                         //!< Set of step lengths using by the line-search procedure
-    double th_grad_;     //!< Tolerance of the expected gradient used for testing the step
-    double th_gaptol_;   //!< Threshold limit to check non-zero gaps
-    double th_stepdec_;  //!< Step-length threshold used to decrease regularization
-    double th_stepinc_;  //!< Step-length threshold used to increase regularization
-    bool was_feasible_;  //!< Label that indicates in the previous iterate was feasible
+    Eigen::VectorXd xnext_;                   //!< Next state
+    MatrixXdRowMajor FxTVxx_p_;               //!< fxTVxx_p_
+    std::vector<MatrixXdRowMajor> FuTVxx_p_;  //!< fuTVxx_p_
+    Eigen::VectorXd fTVxx_p_;                 //!< fTVxx_p term
+    std::vector<Eigen::VectorXd> Quuk_;       //!< Quuk term
+    std::vector<double> alphas_;              //!< Set of step lengths using by the line-search procedure
+    double th_grad_;                          //!< Tolerance of the expected gradient used for testing the step
+    double th_gaptol_;                        //!< Threshold limit to check non-zero gaps
+    double th_stepdec_;                       //!< Step-length threshold used to decrease regularization
+    double th_stepinc_;                       //!< Step-length threshold used to increase regularization
+    bool was_feasible_;                       //!< Label that indicates in the previous iterate was feasible
 };
 
 }  // namespace crocoddyl
