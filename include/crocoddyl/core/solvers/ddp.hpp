@@ -13,11 +13,13 @@
 #include <vector>
 
 #include "crocoddyl/core/mathbase.hpp"
-#include "crocoddyl/core/solver-base.hpp"
+#include "crocoddyl/core/optctrl/shooting.hpp"
 #include "crocoddyl/core/utils/deprecate.hpp"
+#include "crocoddyl/core/utils/exception.hpp"
 
 namespace crocoddyl
 {
+static std::vector<Eigen::VectorXd> DEFAULT_VECTOR;
 
 /**
  * @brief Differential Dynamic Programming (DDP) solver
@@ -48,7 +50,7 @@ namespace crocoddyl
  *
  * \sa `backwardPass()` and `forwardPass()`
  */
-class SolverDDP : public SolverAbstract
+class SolverDDP
 {
    public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -61,17 +63,14 @@ class SolverDDP : public SolverAbstract
      * @param[in] problem  Shooting problem
      */
     explicit SolverDDP(ShootingProblem& problem);
-    virtual ~SolverDDP();
+    ~SolverDDP() = default;
 
-    virtual bool solve(const std::vector<Eigen::VectorXd>& init_xs = DEFAULT_VECTOR,
-                       const std::vector<Eigen::VectorXd>& init_us = DEFAULT_VECTOR, const std::size_t maxiter = 100,
-                       const bool is_feasible = false, const double regInit = 1e-9);
-    virtual void computeDirection(const bool) {}
-    virtual double tryStep(const double) { return 0; }
-    virtual double stoppingCriteria();
-    virtual const Eigen::Vector2d& expectedImprovement() { return d_; }
+    bool solve(const std::vector<Eigen::VectorXd>& init_xs = DEFAULT_VECTOR,
+               const std::vector<Eigen::VectorXd>& init_us = DEFAULT_VECTOR, const std::size_t maxiter = 100,
+               const bool is_feasible = false, const double regInit = 1e-9);
+    double stoppingCriteria();
 
-    Eigen::Vector2d expected_improvement();
+    Eigen::Vector2d expectedImprovement();
 
     /**
      * @brief Update the Jacobian and Hessian of the optimal control problem
@@ -81,7 +80,7 @@ class SolverDDP : public SolverAbstract
      *
      * @return  The total cost around the guess trajectory
      */
-    virtual double calcDiff();
+    double calcDiff();
 
     /**
      * @brief Run the backward pass (Riccati sweep)
@@ -110,7 +109,7 @@ class SolverDDP : public SolverAbstract
      * linear-quadratic approximation of the Value function, and \f$\mathbf{\bar{f}}_{k+1}\f$ describes the gaps of the
      * dynamics.
      */
-    virtual void backwardPass();
+    void backwardPass();
 
     /**
      * @brief Run the forward pass or rollout
@@ -126,73 +125,67 @@ class SolverDDP : public SolverAbstract
      *
      * @param  stepLength  applied step length (\f$0\leq\alpha\leq1\f$)
      */
-    virtual void forwardPass(const double stepLength);
+    void forwardPass(const double stepLength);
 
     /**
-     * @brief Compute the feedforward and feedback terms using a Cholesky decomposition
+     * @brief Set the solver candidate warm-point values \f$(\mathbf{x}_s,\mathbf{u}_s)\f$
      *
-     * To compute the feedforward \f$\mathbf{k}_k\f$ and feedback \f$\mathbf{K}_k\f$ terms, we use a Cholesky
-     * decomposition to solve \f$\mathbf{Q}_{\mathbf{uu}_k}^{-1}\f$ term:
-     * \f{eqnarray}
-     * \mathbf{k}_k &=& \mathbf{Q}_{\mathbf{uu}_k}^{-1}\mathbf{Q}_{\mathbf{u}},\\
-     * \mathbf{K}_k &=& \mathbf{Q}_{\mathbf{uu}_k}^{-1}\mathbf{Q}_{\mathbf{ux}}.
-     * \f}
+     * The solver candidates are defined as a state and control trajectories \f$(\mathbf{x}_s,\mathbf{u}_s)\f$ of
+     * \f$T+1\f$ and \f$T\f$ elements, respectively. Additionally, we need to define is
+     * \f$(\mathbf{x}_s,\mathbf{u}_s)\f$ pair is feasible, this means that the dynamics rollout give us produces
+     * \f$\mathbf{x}_s\f$.
      *
-     * Note that if the Cholesky decomposition fails, then we re-start the backward pass and increase the
-     * state and control regularization values.
+     * @param[in]  xs          state trajectory of \f$T+1\f$ elements (default [])
+     * @param[in]  us          control trajectory of \f$T\f$ elements (default [])
+     * @param[in]  isFeasible  true if the \p xs are obtained from integrating the \p us (rollout)
      */
-    virtual void computeGains(const std::size_t t);
+    void setCandidate(const std::vector<Eigen::VectorXd>& xs_warm = DEFAULT_VECTOR,
+                      const std::vector<Eigen::VectorXd>& us_warm = DEFAULT_VECTOR, const bool is_feasible = false);
 
     /**
-     * @brief Increase the state and control regularization values by a `regfactor_` factor
+     * @brief Return the total cost
      */
-    void increaseRegularization();
-
-    /**
-     * @brief Decrease the state and control regularization values by a `regfactor_` factor
-     */
-    void decreaseRegularization();
-
-    /**
-     * @brief Allocate all the internal data needed for the solver
-     */
-    virtual void allocateData();
+    double get_cost() const { return cost_; }
 
    protected:
-    double reg_incfactor_;  //!< Regularization factor used to increase the damping value
-    double reg_decfactor_;  //!< Regularization factor used to decrease the damping value
-    double reg_min_;        //!< Minimum allowed regularization value
-    double reg_max_;        //!< Maximum allowed regularization value
+    double reg_incfactor_ = 10.0;  //!< Regularization factor used to increase the damping value
+    double reg_decfactor_ = 10.0;  //!< Regularization factor used to decrease the damping value
+    double reg_min_ = 1e-9;        //!< Minimum allowed regularization value
+    double reg_max_ = 1e9;         //!< Maximum allowed regularization value
 
-    double cost_try_;                      //!< Total cost computed by line-search procedure
+    double cost_try_ = 0.0;                //!< Total cost computed by line-search procedure
     std::vector<Eigen::VectorXd> xs_try_;  //!< State trajectory computed by line-search procedure
     std::vector<Eigen::VectorXd> us_try_;  //!< Control trajectory computed by line-search procedure
     std::vector<Eigen::VectorXd> dx_;
 
     // allocate data
     std::vector<Eigen::MatrixXd> Vxx_;  //!< Hessian of the Value function
-    Eigen::MatrixXd Vxx_tmp_;           //!< Temporary variable for ensuring symmetry of Vxx
     std::vector<Eigen::VectorXd> Vx_;   //!< Gradient of the Value function
-    std::vector<Eigen::MatrixXd> Qxx_;  //!< Hessian of the Hamiltonian
-    std::vector<Eigen::MatrixXd> Qxu_;  //!< Hessian of the Hamiltonian
-    std::vector<Eigen::MatrixXd> Quu_;  //!< Hessian of the Hamiltonian
-    std::vector<Eigen::VectorXd> Qx_;   //!< Gradient of the Hamiltonian
     std::vector<Eigen::VectorXd> Qu_;   //!< Gradient of the Hamiltonian
     std::vector<MatrixXdRowMajor> K_;   //!< Feedback gains
     std::vector<Eigen::VectorXd> k_;    //!< Feed-forward terms
     std::vector<Eigen::VectorXd> fs_;   //!< Gaps/defects between shooting nodes
 
-    Eigen::VectorXd xnext_;                   //!< Next state
-    MatrixXdRowMajor FxTVxx_p_;               //!< fxTVxx_p_
-    std::vector<MatrixXdRowMajor> FuTVxx_p_;  //!< fuTVxx_p_
-    Eigen::VectorXd fTVxx_p_;                 //!< fTVxx_p term
-    std::vector<Eigen::VectorXd> Quuk_;       //!< Quuk term
-    std::vector<double> alphas_;              //!< Set of step lengths using by the line-search procedure
-    double th_grad_;                          //!< Tolerance of the expected gradient used for testing the step
-    double th_gaptol_;                        //!< Threshold limit to check non-zero gaps
-    double th_stepdec_;                       //!< Step-length threshold used to decrease regularization
-    double th_stepinc_;                       //!< Step-length threshold used to increase regularization
-    bool was_feasible_;                       //!< Label that indicates in the previous iterate was feasible
+    Eigen::VectorXd xnext_;              //!< Next state
+    std::vector<Eigen::VectorXd> Quuk_;  //!< Quuk term
+    std::vector<double> alphas_;         //!< Set of step lengths using by the line-search procedure
+    double th_grad_ = 1e-12;             //!< Tolerance of the expected gradient used for testing the step
+    double th_gaptol_ = 1e-16;           //!< Threshold limit to check non-zero gaps
+    double th_stepdec_ = 0.5;            //!< Step-length threshold used to decrease regularization
+    double th_stepinc_ = 0.01;           //!< Step-length threshold used to increase regularization
+    bool was_feasible_ = false;          //!< Label that indicates in the previous iterate was feasible
+
+    ShootingProblem& problem_;         //!< optimal control problem
+    std::vector<Eigen::VectorXd> xs_;  //!< State trajectory
+    std::vector<Eigen::VectorXd> us_;  //!< Control trajectory
+    bool is_feasible_ = false;         //!< Label that indicates is the iteration is feasible
+    double cost_ = 0.0;                //!< Total cost
+    double reg_ = 1e-9;                //!< Current regularization value
+    double steplength_ = 1.0;          //!< Current applied step-length
+    double dV_ = 0.0;                  //!< Cost reduction obtained by `tryStep()`
+    double dVexp_ = 0.0;               //!< Expected cost reduction
+    double th_acceptstep_ = 0.1;       //!< Threshold used for accepting step
+    double th_stop_ = 1e-9;            //!< Tolerance for stopping the algorithm
 };
 
 }  // namespace crocoddyl

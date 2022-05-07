@@ -7,7 +7,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "crocoddyl/core/solvers/ddp.hpp"
-#include "crocoddyl/core/utils/callbacks.hpp"
 #include "crocoddyl/core/utils/timer.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,16 +33,14 @@
 #include "crocoddyl/multibody/residuals/state.hpp"
 #include "crocoddyl/multibody/states/multibody.hpp"
 
-using namespace boost;
-
 namespace crocoddyl
 {
 namespace benchmark
 {
 
 template <typename Scalar>
-void build_arm_action_models(shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar> >& runningModel,
-                             shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar> >& terminalModel)
+void build_arm_action_models(boost::shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar> >& runningModel,
+                             boost::shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar> >& terminalModel)
 {
     typedef typename crocoddyl::DifferentialActionModelFreeFwdDynamicsTpl<Scalar>
         DifferentialActionModelFreeFwdDynamics;
@@ -72,21 +69,22 @@ void build_arm_action_models(shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar
     locked_joints.push_back(7);
     pinocchio::buildReducedModel(model_full, locked_joints, VectorXs::Zero(model_full.nq), model);
 
-    shared_ptr<crocoddyl::StateMultibodyTpl<Scalar> > state =
-        make_shared<crocoddyl::StateMultibodyTpl<Scalar> >(make_shared<pinocchio::ModelTpl<Scalar> >(model));
+    boost::shared_ptr<crocoddyl::StateMultibodyTpl<Scalar> > state =
+        boost::make_shared<crocoddyl::StateMultibodyTpl<Scalar> >(
+            boost::make_shared<pinocchio::ModelTpl<Scalar> >(model));
 
-    shared_ptr<CostModelAbstract> goalTrackingCost = make_shared<CostModelResidual>(
-        state, make_shared<ResidualModelFramePlacement>(
+    boost::shared_ptr<CostModelAbstract> goalTrackingCost = boost::make_shared<CostModelResidual>(
+        state, boost::make_shared<ResidualModelFramePlacement>(
                    state, model.getFrameId("gripper_left_joint"),
-                   pinocchio::SE3Tpl<Scalar>(Matrix3s::Identity(), Vector3s(Scalar(0), Scalar(0), Scalar(.4)))));
-    shared_ptr<CostModelAbstract> xRegCost =
-        make_shared<CostModelResidual>(state, make_shared<ResidualModelState>(state));
-    shared_ptr<CostModelAbstract> uRegCost =
-        make_shared<CostModelResidual>(state, make_shared<ResidualModelControl>(state));
+                   pinocchio::SE3Tpl<Scalar>(Matrix3s::Identity(), Vector3s(Scalar(0.), Scalar(0), Scalar(.3)))));
+    boost::shared_ptr<CostModelAbstract> xRegCost =
+        boost::make_shared<CostModelResidual>(state, boost::make_shared<ResidualModelState>(state));
+    boost::shared_ptr<CostModelAbstract> uRegCost =
+        boost::make_shared<CostModelResidual>(state, boost::make_shared<ResidualModelControl>(state));
 
     // Create a cost model per the running and terminal action model.
-    shared_ptr<CostModelSum> runningCostModel = make_shared<CostModelSum>(state);
-    shared_ptr<CostModelSum> terminalCostModel = make_shared<CostModelSum>(state);
+    boost::shared_ptr<CostModelSum> runningCostModel = boost::make_shared<CostModelSum>(state);
+    boost::shared_ptr<CostModelSum> terminalCostModel = boost::make_shared<CostModelSum>(state);
 
     // Then let's added the running and terminal cost functions
     runningCostModel->addCost("gripperPose", goalTrackingCost, Scalar(1));
@@ -95,20 +93,20 @@ void build_arm_action_models(shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar
     terminalCostModel->addCost("gripperPose", goalTrackingCost, Scalar(1));
 
     // We define an actuation model
-    shared_ptr<ActuationModelFull> actuation = make_shared<ActuationModelFull>(state);
+    boost::shared_ptr<ActuationModelFull> actuation = boost::make_shared<ActuationModelFull>(state);
 
     // Next, we need to create an action model for running and terminal knots. The
     // forward dynamics (computed using ABA) are implemented
     // inside DifferentialActionModelFullyActuated.
-    shared_ptr<DifferentialActionModelFreeFwdDynamics> runningDAM =
-        make_shared<DifferentialActionModelFreeFwdDynamics>(state, actuation, runningCostModel);
+    boost::shared_ptr<DifferentialActionModelFreeFwdDynamics> runningDAM =
+        boost::make_shared<DifferentialActionModelFreeFwdDynamics>(state, actuation, runningCostModel);
 
     // VectorXs armature(state->get_nq());
     // armature << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.;
     // runningDAM->set_armature(armature);
     // terminalDAM->set_armature(armature);
-    runningModel = make_shared<IntegratedActionModelEuler>(runningDAM, Scalar(1e-3));
-    terminalModel = make_shared<IntegratedActionModelEuler>(runningDAM, Scalar(0.));
+    runningModel = boost::make_shared<IntegratedActionModelEuler>(runningDAM, Scalar(1e-3));
+    terminalModel = boost::make_shared<IntegratedActionModelEuler>(runningDAM, Scalar(0.));
 }
 
 }  // namespace benchmark
@@ -117,16 +115,15 @@ void build_arm_action_models(shared_ptr<crocoddyl::ActionModelAbstractTpl<Scalar
 int main()
 {
     unsigned int N = 100;  // number of nodes
-    unsigned int T = 5e3;  // number of trials
-    unsigned int MAXITER = 1;
+    unsigned int MAXITER = 100;
 
     // Building the running and terminal models
-    shared_ptr<crocoddyl::ActionModelAbstract> runningModel, terminalModel;
+    boost::shared_ptr<crocoddyl::ActionModelAbstract> runningModel, terminalModel;
     crocoddyl::benchmark::build_arm_action_models(runningModel, terminalModel);
 
     // Get the initial state
-    shared_ptr<crocoddyl::StateMultibody> state =
-        static_pointer_cast<crocoddyl::StateMultibody>(runningModel->get_state());
+    boost::shared_ptr<crocoddyl::StateMultibody> state =
+        boost::static_pointer_cast<crocoddyl::StateMultibody>(runningModel->get_state());
     std::cout << "NQ: " << state->get_nq() << std::endl;
     std::cout << "Number of nodes: " << N << std::endl << std::endl;
     Eigen::VectorXd q0 = Eigen::VectorXd::Random(state->get_nq());
@@ -135,29 +132,22 @@ int main()
 
     // For this optimal control problem, we define 100 knots (or running action
     // models) plus a terminal knot
-    std::vector<shared_ptr<crocoddyl::ActionModelAbstract> > runningModels(N, runningModel);
-    shared_ptr<crocoddyl::ShootingProblem> problem =
-        make_shared<crocoddyl::ShootingProblem>(x0, runningModels, terminalModel);
+    std::vector<boost::shared_ptr<crocoddyl::ActionModelAbstract> > runningModels(N, runningModel);
+    boost::shared_ptr<crocoddyl::ShootingProblem> problem =
+        boost::make_shared<crocoddyl::ShootingProblem>(x0, runningModels, terminalModel);
     std::vector<Eigen::VectorXd> xs(N + 1, x0);
     std::vector<Eigen::VectorXd> us(N, Eigen::VectorXd::Zero(runningModel->get_nu()));
     for (unsigned int i = 0; i < N; ++i)
     {
-        const shared_ptr<crocoddyl::ActionModelAbstract>& model = problem->get_runningModels()[i];
-        const shared_ptr<crocoddyl::ActionDataAbstract>& data = problem->get_runningDatas()[i];
+        const boost::shared_ptr<crocoddyl::ActionModelAbstract>& model = problem->get_runningModels()[i];
+        const boost::shared_ptr<crocoddyl::ActionDataAbstract>& data = problem->get_runningDatas()[i];
         model->quasiStatic(data, us[i], x0);
     }
 
     // Formulating the optimal control problem
     crocoddyl::SolverDDP ddp(*problem);
+    crocoddyl::Timer timer;
+    ddp.solve(xs, us, MAXITER, false, 0.1);
 
-    // Solving the optimal control problem
-    Eigen::ArrayXd duration(T);
-    for (unsigned int i = 0; i < 100; ++i)
-    {
-        crocoddyl::Timer timer;
-        ddp.solve(xs, us, MAXITER, false, 0.1);
-        duration[i] = timer.get_duration();
-    }
-
-    std::cout << "cost: " << ddp.get_cost() << "\ntime: " << duration.sum() / 100 << "\n";
+    std::cout << "cost: " << ddp.get_cost() << "\ntime: " << timer.get_duration() << "\n";
 }
