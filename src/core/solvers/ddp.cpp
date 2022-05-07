@@ -9,6 +9,7 @@
 #include "crocoddyl/core/solvers/ddp.hpp"
 
 #include <iostream>
+#include <numeric>
 
 #include "crocoddyl/core/utils/exception.hpp"
 #include "crocoddyl/core/utils/stop-watch.hpp"
@@ -32,12 +33,11 @@ SolverDDP::SolverDDP(ShootingProblem& problem) : problem_(problem)
 {
     const std::size_t T = problem_.get_T();
     const std::size_t ndx = problem_.get_ndx();
-    const std::size_t nu = problem_.get_nu_max();
 
     for (std::size_t t = 0; t < T; ++t)
     {
         const auto& running_model = problem_.get_runningModels()[t];
-        // const std::size_t nu = running_model->get_nu();
+        const std::size_t nu = running_model->get_nu();
 
         xs_.push_back(running_model->get_state()->zero());
         xs_try_.push_back(running_model->get_state()->zero());
@@ -244,19 +244,8 @@ void SolverDDP::setCandidate(const std::vector<Eigen::VectorXd>& xs_warm, const 
 
 double SolverDDP::stoppingCriteria()
 {
-    double stop = 0.;
-
-    const auto& models = problem_.get_runningModels();
-
-    for (std::size_t t = 0; t < problem_.get_T(); ++t)
-    {
-        const std::size_t nu = models[t]->get_nu();
-        if (nu != 0)
-        {
-            stop += Qu_[t].head(nu).squaredNorm();
-        }
-    }
-    return stop;
+    return std::accumulate(Qu_.begin(), Qu_.end(), 0.0,
+                           [](const auto& sum, const auto& elem) { return sum + elem.squaredNorm(); });
 }
 
 Eigen::Vector2d SolverDDP::expectedImprovement()
@@ -265,13 +254,8 @@ Eigen::Vector2d SolverDDP::expectedImprovement()
 
     for (std::size_t t = 0; t < problem_.get_T(); ++t)
     {
-        const std::size_t nu = problem_.get_runningModels()[t]->get_nu();
-
-        if (nu != 0)
-        {
-            d[0] += Qu_[t].head(nu).dot(k_[t].head(nu));
-            d[1] -= k_[t].head(nu).dot(Quuk_[t].head(nu));
-        }
+        d[0] += Qu_[t].dot(k_[t]);
+        d[1] -= k_[t].dot(Quuk_[t]);  // this is the change in the value
     }
     return d;
 }
@@ -310,9 +294,9 @@ double SolverDDP::calcDiff()
     else if (!was_feasible_)
     {
         // closing the gaps
-        for (std::vector<Eigen::VectorXd>::iterator it = fs_.begin(); it != fs_.end(); ++it)
+        for (auto& gap : fs_)
         {
-            it->setZero();
+            gap.setZero();
         }
     }
     return cost_;
@@ -356,15 +340,15 @@ void SolverDDP::backwardPass()
             throw_pretty("backward_error");
         }
 
-        K_[t].topRows(nu) = Qxu.transpose();
-        k_[t].head(nu) = Qu_[t].head(nu);
+        K_[t] = Qxu.transpose();
+        k_[t] = Qu_[t];
 
-        Quu_llt.solveInPlace(K_[t].topRows(nu));
-        Quu_llt.solveInPlace(k_[t].head(nu));
+        Quu_llt.solveInPlace(K_[t]);
+        Quu_llt.solveInPlace(k_[t]);
 
-        Quuk_[t].head(nu).noalias() = Quu * k_[t].head(nu);
-        Vx_[t].noalias() = Qx - K_[t].topRows(nu).transpose() * Qu_[t].head(nu);
-        Vxx_[t].noalias() = Qxx - Qxu * K_[t].topRows(nu);
+        Quuk_[t] = Quu * k_[t];
+        Vx_[t] = Qx - K_[t].transpose() * Qu_[t];
+        Vxx_[t] = Qxx - Qxu * K_[t];
 
         // Ensure symmetry of Vxx
         Eigen::MatrixXd Vxx_tmp_ = 0.5 * (Vxx_[t] + Vxx_[t].transpose());
@@ -374,7 +358,7 @@ void SolverDDP::backwardPass()
         // Compute and store the Vx gradient at end of the interval (rollout state)
         if (!is_feasible_)
         {
-            Vx_[t].noalias() += Vxx_[t] * fs_[t];
+            Vx_[t] += Vxx_[t] * fs_[t];
         }
 
         if (raiseIfNaN(Vx_[t].lpNorm<Eigen::Infinity>()))
