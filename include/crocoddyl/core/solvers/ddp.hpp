@@ -68,9 +68,6 @@ class SolverDDP
     bool solve(const std::vector<Eigen::VectorXd>& init_xs = DEFAULT_VECTOR,
                const std::vector<Eigen::VectorXd>& init_us = DEFAULT_VECTOR, const std::size_t maxiter = 100,
                const bool is_feasible = false, const double regInit = 1e-9);
-    double stoppingCriteria();
-
-    Eigen::Vector2d expectedImprovement();
 
     /**
      * @brief Update the Jacobian and Hessian of the optimal control problem
@@ -109,7 +106,7 @@ class SolverDDP
      * linear-quadratic approximation of the Value function, and \f$\mathbf{\bar{f}}_{k+1}\f$ describes the gaps of the
      * dynamics.
      */
-    void backwardPass();
+    bool backwardPass();
 
     /**
      * @brief Run the forward pass or rollout
@@ -125,7 +122,7 @@ class SolverDDP
      *
      * @param  stepLength  applied step length (\f$0\leq\alpha\leq1\f$)
      */
-    void forwardPass(const double stepLength);
+    bool forwardPass(const double stepLength);
 
     /**
      * @brief Set the solver candidate warm-point values \f$(\mathbf{x}_s,\mathbf{u}_s)\f$
@@ -156,24 +153,23 @@ class SolverDDP
     double cost_try_ = 0.0;                //!< Total cost computed by line-search procedure
     std::vector<Eigen::VectorXd> xs_try_;  //!< State trajectory computed by line-search procedure
     std::vector<Eigen::VectorXd> us_try_;  //!< Control trajectory computed by line-search procedure
-    std::vector<Eigen::VectorXd> dx_;
 
     // allocate data
     std::vector<Eigen::MatrixXd> Vxx_;  //!< Hessian of the Value function
     std::vector<Eigen::VectorXd> Vx_;   //!< Gradient of the Value function
-    std::vector<Eigen::VectorXd> Qu_;   //!< Gradient of the Hamiltonian
     std::vector<MatrixXdRowMajor> K_;   //!< Feedback gains
     std::vector<Eigen::VectorXd> k_;    //!< Feed-forward terms
     std::vector<Eigen::VectorXd> fs_;   //!< Gaps/defects between shooting nodes
 
-    Eigen::VectorXd xnext_;              //!< Next state
-    std::vector<Eigen::VectorXd> Quuk_;  //!< Quuk term
-    std::vector<double> alphas_;         //!< Set of step lengths using by the line-search procedure
-    double th_grad_ = 1e-12;             //!< Tolerance of the expected gradient used for testing the step
-    double th_gaptol_ = 1e-16;           //!< Threshold limit to check non-zero gaps
-    double th_stepdec_ = 0.5;            //!< Step-length threshold used to decrease regularization
-    double th_stepinc_ = 0.01;           //!< Step-length threshold used to increase regularization
-    bool was_feasible_ = false;          //!< Label that indicates in the previous iterate was feasible
+    Eigen::Vector2d d_;
+    double stop_;
+    Eigen::VectorXd xnext_;       //!< Next state
+    std::vector<double> alphas_;  //!< Set of step lengths using by the line-search procedure
+    double th_grad_ = 1e-12;      //!< Tolerance of the expected gradient used for testing the step
+    double th_gaptol_ = 1e-16;    //!< Threshold limit to check non-zero gaps
+    double th_stepdec_ = 0.5;     //!< Step-length threshold used to decrease regularization
+    double th_stepinc_ = 0.01;    //!< Step-length threshold used to increase regularization
+    bool was_feasible_ = false;   //!< Label that indicates in the previous iterate was feasible
 
     ShootingProblem& problem_;         //!< optimal control problem
     std::vector<Eigen::VectorXd> xs_;  //!< State trajectory
@@ -187,6 +183,8 @@ class SolverDDP
     double th_acceptstep_ = 0.1;       //!< Threshold used for accepting step
     double th_stop_ = 1e-9;            //!< Tolerance for stopping the algorithm
 };
+
+bool raiseIfNaN(const double value) { return (std::isnan(value) || std::isinf(value) || value >= 1e30); }
 
 }  // namespace crocoddyl
 

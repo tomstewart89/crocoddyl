@@ -17,18 +17,6 @@
 namespace crocoddyl
 {
 
-bool raiseIfNaN(const double value)
-{
-    if (std::isnan(value) || std::isinf(value) || value >= 1e30)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
-
 SolverDDP::SolverDDP(ShootingProblem& problem) : problem_(problem)
 {
     const std::size_t T = problem_.get_T();
@@ -47,14 +35,9 @@ SolverDDP::SolverDDP(ShootingProblem& problem) : problem_(problem)
 
         Vxx_.push_back(Eigen::MatrixXd::Zero(ndx, ndx));
         Vx_.push_back(Eigen::VectorXd::Zero(ndx));
-        Qu_.push_back(Eigen::VectorXd::Zero(nu));
         K_.push_back(MatrixXdRowMajor::Zero(nu, ndx));
         k_.push_back(Eigen::VectorXd::Zero(nu));
         fs_.push_back(Eigen::VectorXd::Zero(ndx));
-
-        dx_.push_back(Eigen::VectorXd::Zero(ndx));
-
-        Quuk_.push_back(Eigen::VectorXd(nu));
     }
 
     xs_try_[0] = problem_.get_x0();
@@ -85,80 +68,64 @@ bool SolverDDP::solve(const std::vector<Eigen::VectorXd>& init_xs, const std::ve
 
     was_feasible_ = false;
 
-    bool recalcDiff = true;
-
     problem_.calc(xs_, us_);
+    calcDiff();
 
     for (std::size_t iter = 0; iter < maxiter; ++iter)
     {
-        while (true)
+        while (!backwardPass())
         {
-            try
-            {
-                if (recalcDiff)
-                {
-                    calcDiff();
-                }
+            reg_ *= reg_incfactor_;
 
-                backwardPass();
-            }
-            catch (std::exception& e)
+            if (reg_ >= reg_max_)
             {
-                recalcDiff = false;
-                reg_ = std::min(reg_ * reg_incfactor_, reg_max_);
-
-                if (reg_ == reg_max_)
-                {
-                    return false;
-                }
-                else
-                {
-                    continue;
-                }
+                return false;
             }
-            break;
         }
-        auto d = expectedImprovement();
 
-        // We need to recalculate the derivatives when the step length passes
-        recalcDiff = false;
         for (const auto& alpha : alphas_)
         {
             steplength_ = alpha;
 
-            try
-            {
-                forwardPass(steplength_);
-                dV_ = cost_ - cost_try_;
-            }
-            catch (std::exception& e)
+            if (!forwardPass(steplength_))
             {
                 continue;
             }
-            dVexp_ = steplength_ * (d[0] + 0.5 * steplength_ * d[1]);
 
-            if (dVexp_ >= 0)  // descend direction
+            // Calculate the actual change in cost
+            dV_ = cost_ - cost_try_;
+
+            // Calculate the expected change in cost
+            dVexp_ = steplength_ * (d_[0] + 0.5 * steplength_ * d_[1]);
+
+            // If the step is in the descent direction of the cost
+            if (dVexp_ >= 0)
             {
-                if (d[0] < th_grad_ || !is_feasible_ || dV_ > th_acceptstep_ * dVexp_)
+                if (d_[0] < th_grad_ || !is_feasible_ || dV_ > th_acceptstep_ * dVexp_)
                 {
                     was_feasible_ = is_feasible_;
                     setCandidate(xs_try_, us_try_, true);
                     cost_ = cost_try_;
-                    recalcDiff = true;
+
+                    // We need to recalculate the derivatives when the step length passes
+                    calcDiff();
                     break;
                 }
             }
         }
 
+        // If we were only able to take a short step then the quadratic approximation probably isn't very accurate so
+        // let's increase the regularisation
         if (steplength_ > th_stepdec_)
         {
-            reg_ = std::max(reg_ / reg_decfactor_, reg_min_);  // decrease regularisation
+            reg_ = std::max(reg_ / reg_decfactor_, reg_min_);
         }
-        if (steplength_ <= th_stepinc_)
+        // If we were able to take a large step, then we can decrease the regularisation
+        else if (steplength_ <= th_stepinc_)
         {
-            reg_ = std::min(reg_ * reg_incfactor_, reg_max_);
+            reg_ *= reg_incfactor_;
 
-            if (reg_ == reg_max_)
+            if (reg_ >= reg_max_)
             {
                 return false;
             }
@@ -166,13 +133,175 @@ bool SolverDDP::solve(const std::vector<Eigen::VectorXd>& init_xs, const std::ve
 
         std::cout << "it: " << iter << " " << cost_ << " reg: " << reg_ << "\n";
 
-        if (was_feasible_ && stoppingCriteria() < th_stop_)
+        if (was_feasible_ && stop_ < th_stop_)
         {
             return true;
         }
     }
 
     return false;
+}
+
+double SolverDDP::calcDiff()
+{
+    cost_ = problem_.calcDiff(xs_, us_);
+
+    if (!is_feasible_)
+    {
+        const auto& models = problem_.get_runningModels();
+        const auto& datas = problem_.get_runningDatas();
+
+        for (std::size_t t = 0; t < problem_.get_T(); ++t)
+        {
+            models[t]->get_state()->diff(xs_[t + 1], datas[t]->xnext, fs_[t + 1]);
+        }
+
+        bool could_be_feasible = fs_[0].lpNorm<Eigen::Infinity>() < th_gaptol_;
+        const Eigen::VectorXd& x0 = problem_.get_x0();
+        problem_.get_runningModels()[0]->get_state()->diff(xs_[0], x0, fs_[0]);
+
+        if (could_be_feasible)
+        {
+            for (std::size_t t = 0; t < problem_.get_T(); ++t)
+            {
+                if (fs_[t + 1].lpNorm<Eigen::Infinity>() >= th_gaptol_)
+                {
+                    could_be_feasible = false;
+                    break;
+                }
+            }
+        }
+        is_feasible_ = could_be_feasible;
+    }
+    else if (!was_feasible_)
+    {
+        // closing the gaps (because the trajectory is feasible now)
+        for (auto& gap : fs_)
+        {
+            gap.setZero();  // ofcourse this gap must already have an inf-norm of lower than th_gaptol_ which is crazy
+                            // small so we probably needn't even do this, unless this tiny error is being accumulated
+                            // somewhere
+        }
+    }
+    return cost_;
+}
+
+/**
+ * @brief
+ *
+ * @param steplength initially 1 but will be set to progressively more conservative values... until something(?) happens
+ */
+bool SolverDDP::forwardPass(const double steplength)
+{
+    for (std::size_t t = 0; t < problem_.get_T(); ++t)
+    {
+        Eigen::VectorXd dx = Eigen::VectorXd::Zero(xs_[t].size());
+
+        problem_.get_runningModels()[t]->get_state()->diff(xs_[t], xs_try_[t], dx);
+        us_try_[t] = us_[t] - k_[t] * steplength - K_[t] * dx;
+
+        problem_.get_runningModels()[t]->calc(problem_.get_runningDatas()[t], xs_try_[t], us_try_[t]);
+        xs_try_[t + 1] = problem_.get_runningDatas()[t]->xnext;
+
+        if (raiseIfNaN(xs_try_[t + 1].lpNorm<Eigen::Infinity>()))
+        {
+            return false;
+        }
+    }
+
+    problem_.get_terminalModel()->calc(problem_.get_terminalData(), xs_try_.back());
+
+    cost_try_ = std::accumulate(problem_.get_runningDatas().begin(), problem_.get_runningDatas().end(),
+                                problem_.get_terminalData()->cost,
+                                [](double sum, const auto& data) { return sum + data->cost; });
+
+    if (raiseIfNaN(cost_try_))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool SolverDDP::backwardPass()
+{
+    Vxx_.back() = problem_.get_terminalData()->Lxx;
+    Vx_.back() = problem_.get_terminalData()->Lx;
+    Vxx_.back().diagonal().array() += reg_;
+
+    if (!is_feasible_)
+    {
+        Vx_.back().noalias() +=
+            Vxx_.back() *
+            fs_.back();  // the Jacobian of the Value function after the deflection produced by the gap fk+1
+    }
+
+    d_ = Eigen::Vector2d::Zero();
+    stop_ = 0.0;
+
+    for (int t = static_cast<int>(problem_.get_T()) - 1; t >= 0; --t)
+    {
+        const auto& m = problem_.get_runningModels()[t];
+        const auto& d = problem_.get_runningDatas()[t];
+        const Eigen::MatrixXd& Vxx_p = Vxx_[t + 1];
+        const Eigen::VectorXd& Vx_p = Vx_[t + 1];
+        const std::size_t nu = m->get_nu();
+
+        MatrixXdRowMajor FxTVxx_p = d->Fx.transpose() * Vxx_p;
+
+        Eigen::MatrixXd Qxx = d->Lxx + FxTVxx_p * d->Fx;
+        Eigen::MatrixXd Qx = d->Lx + d->Fx.transpose() * Vx_p;
+
+        Eigen::MatrixXd Qxu = d->Lxu + FxTVxx_p * d->Fu;
+        Eigen::MatrixXd Quu = d->Luu + d->Fu.transpose() * Vxx_p * d->Fu;
+        Eigen::VectorXd Qu = d->Lu + d->Fu.transpose() * Vx_p;
+
+        Quu.diagonal().array() += reg_;
+
+        Eigen::LLT<Eigen::MatrixXd> Quu_llt(Quu);
+
+        if (Quu_llt.info() != Eigen::Success)
+        {
+            std::cout << "not positive definite I guess";
+            return false;
+        }
+
+        k_[t] = Qu;
+        Quu_llt.solveInPlace(k_[t]);
+
+        K_[t] = Qxu.transpose();
+        Quu_llt.solveInPlace(K_[t]);
+
+        Vx_[t] = Qx - K_[t].transpose() * Qu;
+        Vxx_[t] = Qxx - Qxu * K_[t];
+
+        stop_ += Qu.squaredNorm();
+        d_[0] += Qu.dot(k_[t]);           // don't know what this is
+        d_[1] -= k_[t].dot(Quu * k_[t]);  // this is the change in the value at time t
+
+        // Ensure symmetry of Vxx
+        Eigen::MatrixXd Vxx_tmp_ = 0.5 * (Vxx_[t] + Vxx_[t].transpose());
+        Vxx_[t] = Vxx_tmp_;
+        Vxx_[t].diagonal().array() += reg_;
+
+        // Compute and store the Vx gradient at end of the interval (rollout state)
+        if (!is_feasible_)
+        {
+            Vx_[t] += Vxx_[t] * fs_[t];  // if the trajectory is feasible or not, we're always free to multiply this by
+                                         // a crazy small number (for a slight performance hit maybe)
+        }
+
+        if (raiseIfNaN(Vx_[t].lpNorm<Eigen::Infinity>()))
+        {
+            return false;
+        }
+        if (raiseIfNaN(Vxx_[t].lpNorm<Eigen::Infinity>()))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void SolverDDP::setCandidate(const std::vector<Eigen::VectorXd>& xs_warm, const std::vector<Eigen::VectorXd>& us_warm,
@@ -240,180 +369,6 @@ void SolverDDP::setCandidate(const std::vector<Eigen::VectorXd>& xs_warm, const 
         std::copy(us_warm.begin(), us_warm.end(), us_.begin());
     }
     is_feasible_ = is_feasible;
-}
-
-double SolverDDP::stoppingCriteria()
-{
-    return std::accumulate(Qu_.begin(), Qu_.end(), 0.0,
-                           [](const auto& sum, const auto& elem) { return sum + elem.squaredNorm(); });
-}
-
-Eigen::Vector2d SolverDDP::expectedImprovement()
-{
-    Eigen::Vector2d d = Eigen::Vector2d::Zero();
-
-    for (std::size_t t = 0; t < problem_.get_T(); ++t)
-    {
-        d[0] += Qu_[t].dot(k_[t]);
-        d[1] -= k_[t].dot(Quuk_[t]);  // this is the change in the value
-    }
-    return d;
-}
-
-double SolverDDP::calcDiff()
-{
-    cost_ = problem_.calcDiff(xs_, us_);
-
-    if (!is_feasible_)
-    {
-        const auto& models = problem_.get_runningModels();
-        const auto& datas = problem_.get_runningDatas();
-
-        for (std::size_t t = 0; t < problem_.get_T(); ++t)
-        {
-            models[t]->get_state()->diff(xs_[t + 1], datas[t]->xnext, fs_[t + 1]);
-        }
-
-        bool could_be_feasible = fs_[0].lpNorm<Eigen::Infinity>() < th_gaptol_;
-        const Eigen::VectorXd& x0 = problem_.get_x0();
-        problem_.get_runningModels()[0]->get_state()->diff(xs_[0], x0, fs_[0]);
-
-        if (could_be_feasible)
-        {
-            for (std::size_t t = 0; t < problem_.get_T(); ++t)
-            {
-                if (fs_[t + 1].lpNorm<Eigen::Infinity>() >= th_gaptol_)
-                {
-                    could_be_feasible = false;
-                    break;
-                }
-            }
-        }
-        is_feasible_ = could_be_feasible;
-    }
-    else if (!was_feasible_)
-    {
-        // closing the gaps
-        for (auto& gap : fs_)
-        {
-            gap.setZero();
-        }
-    }
-    return cost_;
-}
-
-void SolverDDP::backwardPass()
-{
-    Vxx_.back() = problem_.get_terminalData()->Lxx;
-    Vx_.back() = problem_.get_terminalData()->Lx;
-    Vxx_.back().diagonal().array() += reg_;
-
-    if (!is_feasible_)
-    {
-        Vx_.back().noalias() += Vxx_.back() * fs_.back();
-    }
-
-    for (int t = static_cast<int>(problem_.get_T()) - 1; t >= 0; --t)
-    {
-        const auto& m = problem_.get_runningModels()[t];
-        const auto& d = problem_.get_runningDatas()[t];
-        const Eigen::MatrixXd& Vxx_p = Vxx_[t + 1];
-        const Eigen::VectorXd& Vx_p = Vx_[t + 1];
-        const std::size_t nu = m->get_nu();
-
-        MatrixXdRowMajor FxTVxx_p = d->Fx.transpose() * Vxx_p;
-
-        Eigen::MatrixXd Qxx = d->Lxx + FxTVxx_p * d->Fx;
-        Eigen::MatrixXd Qx = d->Lx + d->Fx.transpose() * Vx_p;
-
-        Eigen::MatrixXd Qxu = d->Lxu + FxTVxx_p * d->Fu;
-        Eigen::MatrixXd Quu = d->Luu + d->Fu.transpose() * Vxx_p * d->Fu;
-        Qu_[t].head(nu) = d->Lu + d->Fu.transpose() * Vx_p;
-
-        Quu.diagonal().array() += reg_;
-
-        Eigen::LLT<Eigen::MatrixXd> Quu_llt(Quu);
-
-        if (Quu_llt.info() != Eigen::Success)
-        {
-            std::cout << "not positive definite I guess";
-            throw_pretty("backward_error");
-        }
-
-        K_[t] = Qxu.transpose();
-        k_[t] = Qu_[t];
-
-        Quu_llt.solveInPlace(K_[t]);
-        Quu_llt.solveInPlace(k_[t]);
-
-        Quuk_[t] = Quu * k_[t];
-        Vx_[t] = Qx - K_[t].transpose() * Qu_[t];
-        Vxx_[t] = Qxx - Qxu * K_[t];
-
-        // Ensure symmetry of Vxx
-        Eigen::MatrixXd Vxx_tmp_ = 0.5 * (Vxx_[t] + Vxx_[t].transpose());
-        Vxx_[t] = Vxx_tmp_;
-        Vxx_[t].diagonal().array() += reg_;
-
-        // Compute and store the Vx gradient at end of the interval (rollout state)
-        if (!is_feasible_)
-        {
-            Vx_[t] += Vxx_[t] * fs_[t];
-        }
-
-        if (raiseIfNaN(Vx_[t].lpNorm<Eigen::Infinity>()))
-        {
-            throw_pretty("backward_error");
-        }
-        if (raiseIfNaN(Vxx_[t].lpNorm<Eigen::Infinity>()))
-        {
-            throw_pretty("backward_error");
-        }
-    }
-}
-
-void SolverDDP::forwardPass(const double steplength)
-{
-    if (steplength > 1. || steplength < 0.)
-    {
-        throw_pretty("Invalid argument: "
-                     << "invalid step length, value is between 0. to 1.");
-    }
-    cost_try_ = 0.;
-
-    for (std::size_t t = 0; t < problem_.get_T(); ++t)
-    {
-        const auto& model = problem_.get_runningModels()[t];
-        const auto& data = problem_.get_runningDatas()[t];
-
-        model->get_state()->diff(xs_[t], xs_try_[t], dx_[t]);
-
-        if (model->get_nu() != 0)
-        {
-            us_try_[t] = us_[t] - k_[t] * steplength - K_[t] * dx_[t];
-            model->calc(data, xs_try_[t], us_try_[t]);
-        }
-        else
-        {
-            model->calc(data, xs_try_[t]);
-        }
-
-        xs_try_[t + 1] = data->xnext;
-        cost_try_ += data->cost;
-
-        if (raiseIfNaN(cost_try_) || raiseIfNaN(xs_try_[t + 1].lpNorm<Eigen::Infinity>()))
-        {
-            throw_pretty("forward_error");
-        }
-    }
-
-    problem_.get_terminalModel()->calc(problem_.get_terminalData(), xs_try_.back());
-    cost_try_ += problem_.get_terminalData()->cost;
-
-    if (raiseIfNaN(cost_try_))
-    {
-        throw_pretty("forward_error");
-    }
 }
 
 }  // namespace crocoddyl
